@@ -1,0 +1,16 @@
+# Binaries
+sulla-*
+*.exe
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Documentation
+README.md
+LICENSE
