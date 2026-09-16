@@ -110,6 +110,7 @@ type ScanResult struct {
 	FileCount      int64
 	DirCount       int64
 	SkippedFiles   int64
+	SkippedDirs    int64 // Directories that couldn't be read (e.g. access denied)
 	MatchCount     int
 	SeverityCounts [4]int         // [Critical, High, Medium, Low]
 	RuleCounts     map[string]int // rule ID → count
@@ -122,6 +123,7 @@ type ScanStats struct {
 	FileCount      int64
 	DirCount       int64
 	SkippedFiles   int64
+	SkippedDirs    int64 // Directories that couldn't be read (e.g. access denied)
 	MatchCount     int
 	SeverityCounts [4]int         // [Critical, High, Medium, Low]
 	RuleCounts     map[string]int // rule ID → count

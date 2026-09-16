@@ -60,7 +60,7 @@ func sanitizeFilename(s string) string {
 // printSummary displays an expanded summary of all scan results.
 func printSummary(results []ScanResult, totalTime time.Duration) {
 	var scanned, failed, timedOut int
-	var totalFiles, totalDirs, totalSkipped int64
+	var totalFiles, totalDirs, totalSkipped, totalSkippedDirs int64
 	var totalMatches int
 	var sevTotals [4]int
 	mergedRules := make(map[string]int)
@@ -80,6 +80,7 @@ func printSummary(results []ScanResult, totalTime time.Duration) {
 		totalFiles += r.FileCount
 		totalDirs += r.DirCount
 		totalSkipped += r.SkippedFiles
+		totalSkippedDirs += r.SkippedDirs
 		totalMatches += r.MatchCount
 		if r.MatchCount > 0 {
 			findingTargets++
@@ -102,6 +103,7 @@ func printSummary(results []ScanResult, totalTime time.Duration) {
 	logf("\nFiles scanned:      %s across %s directories\n",
 		formatCount64(totalFiles), formatCount64(totalDirs))
 	logf("Files skipped:      %s\n", formatCount64(totalSkipped))
+	logf("Dirs unreadable:    %s\n", formatCount64(totalSkippedDirs))
 
 	logf("\nPotential secrets:  %d across %d targets\n", totalMatches, findingTargets)
 	logf("  Critical: %d  High: %d  Medium: %d  Low: %d\n",

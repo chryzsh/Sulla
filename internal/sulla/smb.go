@@ -158,9 +158,9 @@ func smbConnect(ctx context.Context, config Config) (net.Conn, *smb2.Session, *s
 // Directories are filtered by shouldExcludeDir before recursion.
 // dirCount is atomically incremented for each directory entered.
 func smbWalkDir(ctx context.Context, share *smb2.Share, root string,
-	excludedDirs dirExclusions, maxDepth int, maxFilesPerDir int, dirCount *int64, fn func(path string, size int64, created, modified time.Time) error) error {
+	excludedDirs dirExclusions, maxDepth int, maxFilesPerDir int, debug bool, dirCount, skippedDirs *int64, fn func(path string, size int64, created, modified time.Time) error) error {
 
-	return smbWalkDirRecursive(ctx, share, root, excludedDirs, maxDepth, maxFilesPerDir, 0, dirCount, fn)
+	return smbWalkDirRecursive(ctx, share, root, excludedDirs, maxDepth, maxFilesPerDir, 0, debug, dirCount, skippedDirs, fn)
 }
 
 // fileTimes extracts the NTFS creation and last-write timestamps from an SMB
@@ -174,7 +174,7 @@ func fileTimes(entry os.FileInfo) (created, modified time.Time) {
 }
 
 func smbWalkDirRecursive(ctx context.Context, share *smb2.Share, dir string,
-	excludedDirs dirExclusions, maxDepth int, maxFilesPerDir int, currentDepth int, dirCount *int64, fn func(path string, size int64, created, modified time.Time) error) error {
+	excludedDirs dirExclusions, maxDepth int, maxFilesPerDir int, currentDepth int, debug bool, dirCount, skippedDirs *int64, fn func(path string, size int64, created, modified time.Time) error) error {
 
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -184,6 +184,10 @@ func smbWalkDirRecursive(ctx context.Context, share *smb2.Share, dir string,
 
 	entries, err := share.ReadDir(dir)
 	if err != nil {
+		atomic.AddInt64(skippedDirs, 1)
+		if debug {
+			logf("[*] Skipping unreadable directory: %s: %v\n", dir, err)
+		}
 		return nil // skip unreadable directories
 	}
 
@@ -203,7 +207,7 @@ func smbWalkDirRecursive(ctx context.Context, share *smb2.Share, dir string,
 			if maxDepth > 0 && currentDepth >= maxDepth {
 				continue
 			}
-			if err := smbWalkDirRecursive(ctx, share, fullPath, excludedDirs, maxDepth, maxFilesPerDir, currentDepth+1, dirCount, fn); err != nil {
+			if err := smbWalkDirRecursive(ctx, share, fullPath, excludedDirs, maxDepth, maxFilesPerDir, currentDepth+1, debug, dirCount, skippedDirs, fn); err != nil {
 				return err
 			}
 		} else {
