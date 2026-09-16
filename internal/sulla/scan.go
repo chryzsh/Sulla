@@ -404,6 +404,7 @@ func runTitusScanSMB(ctx context.Context, config Config, share *smb2.Share) (Sca
 		fileCount    int64
 		dirCount     int64
 		skippedFiles int64
+		skippedDirs  int64
 	)
 
 	// Streaming writer for interesting exclusions — writes each entry to disk
@@ -484,7 +485,7 @@ func runTitusScanSMB(ctx context.Context, config Config, share *smb2.Share) (Sca
 	}
 
 	// Producer: walk share and send eligible files to workers
-	err := smbWalkDir(ctx, share, ".", excludedDirs, config.MaxDepth, config.MaxFilesPerDir, &dirCount, func(path string, size int64) error {
+	err := smbWalkDir(ctx, share, ".", excludedDirs, config.MaxDepth, config.MaxFilesPerDir, config.Debug, &dirCount, &skippedDirs, func(path string, size int64) error {
 		// Keyword matches override all exclusion logic
 		keywordMatch := false
 		if len(config.Keywords) > 0 {
@@ -534,10 +535,18 @@ func runTitusScanSMB(ctx context.Context, config Config, share *smb2.Share) (Sca
 	fc := atomic.LoadInt64(&fileCount)
 	dc := atomic.LoadInt64(&dirCount)
 	sf := atomic.LoadInt64(&skippedFiles)
+	sd := atomic.LoadInt64(&skippedDirs)
 	if timedOut {
 		logf("%s Time limit reached — scanned %d files in %d directories (partial)\n", tag, fc, dc)
 	} else if config.Verbose {
 		logf("%s Scanned %d files in %d directories\n", tag, fc, dc)
+	}
+	if sd > 0 {
+		dirWord, verb := "directory", "was"
+		if sd != 1 {
+			dirWord, verb = "directories", "were"
+		}
+		logf("%s WARNING: %d %s could not be read (access denied?) and %s not scanned. Re-run with --debug for the list.\n", tag, sd, dirWord, verb)
 	}
 
 	// Build severity and rule counts from matches
@@ -554,6 +563,7 @@ func runTitusScanSMB(ctx context.Context, config Config, share *smb2.Share) (Sca
 		FileCount:      fc,
 		DirCount:       dc,
 		SkippedFiles:   sf,
+		SkippedDirs:    sd,
 		MatchCount:     len(allMatches),
 		SeverityCounts: sevCounts,
 		RuleCounts:     ruleCounts,
