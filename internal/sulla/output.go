@@ -446,8 +446,10 @@ func outputTitusResults(config Config, matches []fileMatch) error {
 func outputTitusText(w io.Writer, matches []fileMatch) {
 	// Group matches by file
 	type fileGroup struct {
-		path    string
-		matches []fileMatch
+		path     string
+		created  time.Time
+		modified time.Time
+		matches  []fileMatch
 	}
 	seen := make(map[string]int)
 	var groups []fileGroup
@@ -456,13 +458,15 @@ func outputTitusText(w io.Writer, matches []fileMatch) {
 			groups[idx].matches = append(groups[idx].matches, fm)
 		} else {
 			seen[fm.filePath] = len(groups)
-			groups = append(groups, fileGroup{path: fm.filePath, matches: []fileMatch{fm}})
+			groups = append(groups, fileGroup{path: fm.filePath, created: fm.created, modified: fm.modified, matches: []fileMatch{fm}})
 		}
 	}
 
 	fmt.Fprintf(w, "\n=== Titus Scan Results: %d finding(s) in %d file(s) ===\n\n", len(matches), len(groups))
 	for _, g := range groups {
 		fmt.Fprintf(w, "File: %s\n", g.path)
+		fmt.Fprintf(w, "Created: %s\n", formatCreationTime(g.created))
+		fmt.Fprintf(w, "Modified: %s\n", formatCreationTime(g.modified))
 		fmt.Fprintln(w, strings.Repeat("-", 60))
 		for _, fm := range g.matches {
 			m := fm.match
@@ -475,6 +479,24 @@ func outputTitusText(w io.Writer, matches []fileMatch) {
 			fmt.Fprintln(w)
 		}
 	}
+}
+
+// formatCreationTime renders a file timestamp (creation or last-write) for
+// the text report, or "unknown" when the SMB server didn't return one.
+func formatCreationTime(t time.Time) string {
+	if t.IsZero() {
+		return "unknown"
+	}
+	return t.Format("2006-01-02 15:04:05")
+}
+
+// formatCreatedAtRFC3339 renders a file timestamp for structured output
+// (JSON/JSONL), or "" when the SMB server didn't return one.
+func formatCreatedAtRFC3339(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.RFC3339)
 }
 
 // outputTitusToFile writes matches to a file in the requested format.
@@ -491,13 +513,15 @@ func outputTitusToFile(matches []fileMatch, format, path string) error {
 
 	case "json":
 		type jsonMatch struct {
-			FilePath string            `json:"file_path"`
-			Severity string            `json:"severity"`
-			Match    *titustypes.Match `json:"match"`
+			FilePath   string            `json:"file_path"`
+			Severity   string            `json:"severity"`
+			CreatedAt  string            `json:"created_at,omitempty"`
+			ModifiedAt string            `json:"modified_at,omitempty"`
+			Match      *titustypes.Match `json:"match"`
 		}
 		var out []jsonMatch
 		for _, fm := range matches {
-			out = append(out, jsonMatch{FilePath: fm.filePath, Severity: fm.severity.String(), Match: fm.match})
+			out = append(out, jsonMatch{FilePath: fm.filePath, Severity: fm.severity.String(), CreatedAt: formatCreatedAtRFC3339(fm.created), ModifiedAt: formatCreatedAtRFC3339(fm.modified), Match: fm.match})
 		}
 		data, err := json.MarshalIndent(out, "", "  ")
 		if err != nil {
@@ -513,12 +537,14 @@ func outputTitusToFile(matches []fileMatch, format, path string) error {
 		defer f.Close()
 		enc := json.NewEncoder(f)
 		type jsonMatch struct {
-			FilePath string            `json:"file_path"`
-			Severity string            `json:"severity"`
-			Match    *titustypes.Match `json:"match"`
+			FilePath   string            `json:"file_path"`
+			Severity   string            `json:"severity"`
+			CreatedAt  string            `json:"created_at,omitempty"`
+			ModifiedAt string            `json:"modified_at,omitempty"`
+			Match      *titustypes.Match `json:"match"`
 		}
 		for _, fm := range matches {
-			if err := enc.Encode(jsonMatch{FilePath: fm.filePath, Severity: fm.severity.String(), Match: fm.match}); err != nil {
+			if err := enc.Encode(jsonMatch{FilePath: fm.filePath, Severity: fm.severity.String(), CreatedAt: formatCreatedAtRFC3339(fm.created), ModifiedAt: formatCreatedAtRFC3339(fm.modified), Match: fm.match}); err != nil {
 				return fmt.Errorf("failed to encode JSONL: %w", err)
 			}
 		}
