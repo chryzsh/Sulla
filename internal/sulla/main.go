@@ -339,7 +339,6 @@ func Main(version string) {
 				FileCount:      stats.FileCount,
 				DirCount:       stats.DirCount,
 				SkippedFiles:   stats.SkippedFiles,
-				SkippedDirs:    stats.SkippedDirs,
 				MatchCount:     stats.MatchCount,
 				SeverityCounts: stats.SeverityCounts,
 				RuleCounts:     stats.RuleCounts,
