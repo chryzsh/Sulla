@@ -166,6 +166,10 @@ func smbWalkDir(ctx context.Context, share *smb2.Share, root string,
 // fileTimes extracts the NTFS creation and last-write timestamps from an SMB
 // directory entry. go-smb2's ReadDir populates these via *smb2.FileStat.Sys();
 // returns zero times if the concrete type doesn't expose them.
+//
+// go-smb2 builds these via time.Unix, so the returned values are in the
+// scanning host's local timezone (the absolute instant is correct). Output
+// formatters print an explicit UTC offset so the rendered time is unambiguous.
 func fileTimes(entry os.FileInfo) (created, modified time.Time) {
 	if fs, ok := entry.Sys().(*smb2.FileStat); ok {
 		return fs.CreationTime, fs.LastWriteTime
